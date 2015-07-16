@@ -31,6 +31,10 @@
 #include "omptarget.h"
 #include "targets_info.h"
 
+#ifdef OMPT_SUPPORT
+  #include "ompt_target.h"
+#endif
+
 #define DP(...) DEBUGP("Libomptarget", __VA_ARGS__)
 
 extern targets_info_table targets_info;
@@ -410,6 +414,10 @@ EXTERN void __tgt_register_lib(__tgt_bin_desc *desc){
     return;
   }
 
+#ifdef OMPT_SUPPORT
+  __ompt_target_initialize();
+#endif
+
   // Initialize translation table for this
   TranslationTable &TransTable = HostEntriesBeginToTransTable[desc->EntriesBegin];
   TransTable.HostTable.EntriesBegin = desc->EntriesBegin;
@@ -551,6 +559,16 @@ EXTERN void __tgt_unregister_lib(__tgt_bin_desc *desc){
 static int target_data_begin(DeviceTy & Device, int32_t arg_num,
   void** args_base, void **args, int64_t *arg_sizes, int32_t *arg_types)
 {
+#ifdef OMPT_SUPPORT
+  ompt_task_id_t task_id;
+  uint32_t mapping_flags;
+  if (ompt_enabled() &&
+      (ompt_get_new_data_map_callback(ompt_event_target_data_map_begin) ||
+       ompt_get_target_data_map_done_callback(ompt_event_target_data_map_done))) {
+    task_id = ompt_get_task_id(0);
+  }
+#endif
+
   // process each input
   for(int32_t i=0; i<arg_num; ++i){
     int res;
@@ -558,6 +576,7 @@ static int target_data_begin(DeviceTy & Device, int32_t arg_num,
     void *HstPtrBase = args_base[i];
     void *Pointer_TgtPtrBegin;
     long IsNew, Pointer_IsNew;
+
     if (arg_types[i] & tgt_map_pointer) {
       DP("has a pointer entry: \n");
       // base is address of poiner
@@ -576,6 +595,17 @@ static int target_data_begin(DeviceTy & Device, int32_t arg_num,
       (long)arg_sizes[i], (long)TgtPtrBegin, IsNew);
     assert(TgtPtrBegin && "Data allocation by RTL returned invalid ptr");
 
+#ifdef OMPT_SUPPORT
+    if (ompt_enabled() &&
+        ompt_get_new_data_map_callback(ompt_event_target_data_map_begin)) {
+      mapping_flags = ompt_get_mapping_flags(arg_types[i]);
+
+      // TODO: HstPtrBase? 'target_map_code'?
+      ompt_get_new_data_map_callback(ompt_event_target_data_map_begin)(
+        task_id, Device.DeviceID, HstPtrBegin, TgtPtrBegin, arg_sizes[i],
+        mapping_flags, 0);
+    }
+#endif
 
     if ((arg_types[i] & tgt_map_to) && 
         (IsNew || (arg_types[i] & tgt_map_always))) {
@@ -595,6 +625,15 @@ static int target_data_begin(DeviceTy & Device, int32_t arg_num,
       if(res != OFFLOAD_SUCCESS)
         return OFFLOAD_FAIL;
     }
+
+#ifdef OMPT_SUPPORT
+    if (ompt_enabled() &&
+        ompt_get_target_data_map_done_callback(ompt_event_target_data_map_done)) {
+      ompt_get_target_data_map_done_callback(ompt_event_target_data_map_done)(
+        task_id, Device.DeviceID, HstPtrBegin, TgtPtrBegin, arg_sizes[i],
+        mapping_flags);
+    }
+#endif
   }
 
   return OFFLOAD_SUCCESS;
@@ -637,6 +676,18 @@ EXTERN void __tgt_target_data_begin(int32_t device_id, int32_t arg_num,
     }
   }
 
+#ifdef OMPT_SUPPORT
+  if (ompt_enabled()) {
+    if (ompt_get_new_target_data_callback(ompt_event_target_data_begin)) {
+      ompt_task_id_t task_id = ompt_get_task_id(0);
+
+      // TODO: 'target_data_code'?
+      ompt_get_new_target_data_callback(ompt_event_target_data_begin)(
+        task_id, Device.DeviceID, 0);
+    }
+  }
+#endif
+
   target_data_begin(Device, arg_num, args_base, args, arg_sizes, arg_types);
 }
 
@@ -646,12 +697,24 @@ static int target_data_end(DeviceTy & Device, int32_t arg_num,
   void** args_base, void **args, int64_t *arg_sizes, int32_t *arg_types)
 {
   int res;
+
+#ifdef OMPT_SUPPORT
+  ompt_task_id_t task_id;
+  uint32_t mapping_flags;
+  if (ompt_enabled() &&
+      (ompt_get_new_data_map_callback(ompt_event_target_data_map_begin) ||
+       ompt_get_target_data_map_done_callback(ompt_event_target_data_map_done))) {
+    task_id = ompt_get_task_id(0);
+  }
+#endif
+
   // process each input
   for(int32_t i=0; i<arg_num; ++i){
     void *HstPtrBegin = args[i];
     void *HstPtrBase = args_base[i];
     long IsLast;
     long ForceDelete = arg_types[i] & tgt_map_delete;
+
     if (arg_types[i] & tgt_map_pointer) {
       // base is pointer begin
       Device.getTgtPtrBegin(HstPtrBase, sizeof(void*), IsLast);
@@ -664,6 +727,18 @@ static int target_data_end(DeviceTy & Device, int32_t arg_num,
     DP("There are %ld bytes allocated at target address %016lx - is last %ld\n",
           (long)arg_sizes[i], (long)TgtPtrBegin, IsLast);
 
+#ifdef OMPT_SUPPORT
+    if (ompt_enabled() &&
+        ompt_get_new_data_map_callback(ompt_event_target_data_map_begin)) {
+      mapping_flags = ompt_get_mapping_flags(arg_types[i]);
+
+      // TODO: HstPtrBase? 'target_map_code'?
+      ompt_get_new_data_map_callback(ompt_event_target_data_map_begin)(
+        task_id, Device.DeviceID, HstPtrBegin, TgtPtrBegin, arg_sizes[i],
+        mapping_flags, 0);
+    }
+#endif
+
     long Always = arg_types[i] & tgt_map_always;
     if ((arg_types[i] & tgt_map_from) && (IsLast || ForceDelete || Always)) {
       DP("Moving %ld bytes (tgt:%016lx) -> (hst:%016lx)\n", (long)arg_sizes[i],
@@ -675,6 +750,15 @@ static int target_data_end(DeviceTy & Device, int32_t arg_num,
     if (IsLast || ForceDelete) {
       Device.deallocTgtPtr(HstPtrBegin, arg_sizes[i], ForceDelete);
     }
+
+#ifdef OMPT_SUPPORT
+    if (ompt_enabled() &&
+        ompt_get_target_data_map_done_callback(ompt_event_target_data_map_done)) {
+      ompt_get_target_data_map_done_callback(ompt_event_target_data_map_done)(
+        task_id, Device.DeviceID, HstPtrBegin, TgtPtrBegin, arg_sizes[i],
+        mapping_flags);
+    }
+#endif
   }
 
   return OFFLOAD_SUCCESS;
@@ -705,6 +789,12 @@ EXTERN void __tgt_target_data_end(int32_t device_id, int32_t arg_num,
 
   target_data_end(Device, arg_num, args_base, args, arg_sizes, arg_types);
 
+#ifdef OMPT_SUPPORT
+  if (ompt_enabled() && ompt_get_task_callback(ompt_event_target_data_end)) {
+    ompt_task_id_t task_id = ompt_get_task_id(0);
+    ompt_get_task_callback(ompt_event_target_data_end)(task_id);
+  }
+#endif
 }
 
 EXTERN void __tgt_target_data_end_nowait(int32_t device_id, int32_t arg_num,
@@ -737,12 +827,50 @@ EXTERN void __tgt_target_data_update(int32_t device_id, int32_t arg_num,
     return;
   }
 
+#ifdef OMPT_SUPPORT
+  ompt_task_id_t target_task_id = ompt_get_task_id(0);
+  uint32_t mapping_flags;
+
+  if (ompt_enabled() &&
+      (ompt_get_new_target_task_callback(ompt_event_target_task_begin) ||
+       ompt_get_new_target_task_callback(ompt_event_target_update_begin))) {
+    ompt_task_id_t parent_task_id = ompt_get_task_id(1);
+    ompt_frame_t *parent_task_frame = ompt_get_task_frame(1);
+
+    // FIXME: 'target_task_function'?
+    if (ompt_get_new_target_task_callback(ompt_event_target_task_begin)) {
+      ompt_get_new_target_task_callback(ompt_event_target_task_begin)(
+        parent_task_id, parent_task_frame, target_task_id, Device.DeviceID,
+        0);
+    }
+
+    if (ompt_get_new_target_task_callback(ompt_event_target_update_begin)) {
+      ompt_get_new_target_task_callback(ompt_event_target_update_begin)(
+        parent_task_id, parent_task_frame, target_task_id, Device.DeviceID,
+        0);
+    }
+  }
+#endif
+
   // process each input
   for(int32_t i=0; i<arg_num; ++i) {
     void *HstPtrBegin = args[i];
     //void *HstPtrBase = args_base[i];
     long IsLast;
     void *TgtPtrBegin = Device.getTgtPtrBegin(HstPtrBegin, arg_sizes[i], IsLast, false);
+
+#ifdef OMPT_SUPPORT
+    if (ompt_enabled() &&
+        ompt_get_new_data_map_callback(ompt_event_target_data_map_begin)) {
+      mapping_flags = ompt_get_mapping_flags(arg_types[i]);
+
+      // TODO: 'target_map_code'?
+      ompt_get_new_data_map_callback(ompt_event_target_data_map_begin)(
+        target_task_id, Device.DeviceID, HstPtrBegin, TgtPtrBegin, arg_sizes[i],
+        mapping_flags, 0);
+    }
+#endif
+
     if (arg_types[i] & tgt_map_from) {
       DP("Moving %ld bytes (tgt:%016lx) -> (hst:%016lx)\n", (long)arg_sizes[i],
         (long)TgtPtrBegin, (long)HstPtrBegin);
@@ -753,7 +881,28 @@ EXTERN void __tgt_target_data_update(int32_t device_id, int32_t arg_num,
         (long)HstPtrBegin, (long)TgtPtrBegin);
       Device.data_submit(TgtPtrBegin, HstPtrBegin, arg_sizes[i]);
     }
+
+#ifdef OMPT_SUPPORT
+    if (ompt_enabled() &&
+        ompt_get_target_data_map_done_callback(ompt_event_target_data_map_done)) {
+      ompt_get_target_data_map_done_callback(ompt_event_target_data_map_done)(
+        target_task_id, Device.DeviceID, HstPtrBegin, TgtPtrBegin, arg_sizes[i],
+        mapping_flags);
+    }
+#endif
   }
+
+#ifdef OMPT_SUPPORT
+  if (ompt_enabled()) {
+    if (ompt_get_task_callback(ompt_event_target_update_end)) {
+      ompt_get_task_callback(ompt_event_target_update_end)(target_task_id);
+    }
+
+    if (ompt_get_task_callback(ompt_event_target_task_end)) {
+      ompt_get_task_callback(ompt_event_target_task_end)(target_task_id);
+    }
+  }
+#endif
 }
 
 EXTERN void __tgt_target_data_update_nowait(int32_t device_id, int32_t arg_num,
@@ -934,6 +1083,25 @@ static int target(int32_t device_id, void *host_ptr, int32_t arg_num,
     }
   }
 
+#ifdef OMPT_SUPPORT
+  ompt_task_id_t target_task_id;
+  if (ompt_enabled()) {
+    if (ompt_get_new_target_task_callback(ompt_event_target_task_begin) ||
+      ompt_get_task_callback(ompt_event_target_task_end)) {
+      target_task_id = ompt_get_task_id(0);
+    }
+
+    if (ompt_get_new_target_task_callback(ompt_event_target_task_begin)) {
+      ompt_task_id_t parent_task_id = ompt_get_task_id(1);
+      ompt_frame_t *parent_task_frame = ompt_get_task_frame(1);
+
+      ompt_get_new_target_task_callback(ompt_event_target_task_begin)(
+        parent_task_id, parent_task_frame, target_task_id, Device.DeviceID,
+        host_ptr);
+    }
+  }
+#endif
+
   int res;
 
   //Move data to device
@@ -971,6 +1139,7 @@ static int target(int32_t device_id, void *host_ptr, int32_t arg_num,
   //Launch device execution
   DP("Launching target execution with pointer %016lx (index=%d).\n", 
     (Elf64_Addr)TargetTable->EntriesBegin[TM->Index].addr, TM->Index);
+
   if (IsTeamConstruct) {
     res = Device.run_team_region(TargetTable->EntriesBegin[TM->Index].addr,
       &tgt_args[0], tgt_args.size(), team_num, thread_limit);
@@ -986,6 +1155,12 @@ static int target(int32_t device_id, void *host_ptr, int32_t arg_num,
   res = target_data_end(Device, arg_num, args_base, args, arg_sizes, arg_types);
   if (res != OFFLOAD_SUCCESS)
     return OFFLOAD_FAIL;
+
+#ifdef OMPT_SUPPORT
+  if (ompt_enabled() && ompt_get_task_callback(ompt_event_target_task_end)) {
+    ompt_get_task_callback(ompt_event_target_task_end)(target_task_id);
+  }
+#endif
 
   return OFFLOAD_SUCCESS;
 }

@@ -44,6 +44,18 @@ set(src_files
     src/targets_info.cpp
 )
 
+set(LIBOMPTARGET_OMPT false CACHE BOOL
+    "Enable OMPT support")
+
+if(${LIBOMPTARGET_OMPT})
+    set(src_files
+        ${src_files}
+        src/ompt_target.cpp
+    )
+
+    add_definitions(-DOMPT_SUPPORT)
+endif()
+
 include_directories(src/)
 
 # Build omptarget library
