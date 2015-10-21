@@ -828,26 +828,30 @@ EXTERN void __tgt_target_data_update(int32_t device_id, int32_t arg_num,
   }
 
 #ifdef OMPT_SUPPORT
-  ompt_task_id_t target_task_id = ompt_get_task_id(0);
+  ompt_task_id_t target_task_id;
   uint32_t mapping_flags;
 
-  if (ompt_enabled() &&
-      (ompt_get_new_target_task_callback(ompt_event_target_task_begin) ||
-       ompt_get_new_target_task_callback(ompt_event_target_update_begin))) {
-    ompt_task_id_t parent_task_id = ompt_get_task_id(1);
-    ompt_frame_t *parent_task_frame = ompt_get_task_frame(1);
+  if (ompt_enabled()) {
+    ompt_target_task_begin();
+    target_task_id = ompt_get_task_id(0);
 
-    // FIXME: 'target_task_function'?
-    if (ompt_get_new_target_task_callback(ompt_event_target_task_begin)) {
-      ompt_get_new_target_task_callback(ompt_event_target_task_begin)(
-        parent_task_id, parent_task_frame, target_task_id, Device.DeviceID,
-        0);
-    }
+    if (ompt_get_new_target_task_callback(ompt_event_target_task_begin) ||
+       ompt_get_new_target_task_callback(ompt_event_target_update_begin)) {
+      ompt_task_id_t parent_task_id = ompt_get_task_id(1);
+      ompt_frame_t *parent_task_frame = ompt_get_task_frame(1);
 
-    if (ompt_get_new_target_task_callback(ompt_event_target_update_begin)) {
-      ompt_get_new_target_task_callback(ompt_event_target_update_begin)(
-        parent_task_id, parent_task_frame, target_task_id, Device.DeviceID,
-        0);
+      // FIXME: 'target_task_function'?
+      if (ompt_get_new_target_task_callback(ompt_event_target_task_begin)) {
+        ompt_get_new_target_task_callback(ompt_event_target_task_begin)(
+          parent_task_id, parent_task_frame, target_task_id, Device.DeviceID,
+          0);
+      }
+
+      if (ompt_get_new_target_task_callback(ompt_event_target_update_begin)) {
+        ompt_get_new_target_task_callback(ompt_event_target_update_begin)(
+          parent_task_id, parent_task_frame, target_task_id, Device.DeviceID,
+          0);
+      }
     }
   }
 #endif
@@ -901,6 +905,8 @@ EXTERN void __tgt_target_data_update(int32_t device_id, int32_t arg_num,
     if (ompt_get_task_callback(ompt_event_target_task_end)) {
       ompt_get_task_callback(ompt_event_target_task_end)(target_task_id);
     }
+
+    ompt_target_task_end();
   }
 #endif
 }
@@ -1086,6 +1092,8 @@ static int target(int32_t device_id, void *host_ptr, int32_t arg_num,
 #ifdef OMPT_SUPPORT
   ompt_task_id_t target_task_id;
   if (ompt_enabled()) {
+    ompt_target_task_begin();
+
     if (ompt_get_new_target_task_callback(ompt_event_target_task_begin) ||
       ompt_get_task_callback(ompt_event_target_task_end)) {
       target_task_id = ompt_get_task_id(0);
@@ -1157,8 +1165,12 @@ static int target(int32_t device_id, void *host_ptr, int32_t arg_num,
     return OFFLOAD_FAIL;
 
 #ifdef OMPT_SUPPORT
-  if (ompt_enabled() && ompt_get_task_callback(ompt_event_target_task_end)) {
-    ompt_get_task_callback(ompt_event_target_task_end)(target_task_id);
+  if (ompt_enabled()) {
+    if (ompt_get_task_callback(ompt_event_target_task_end)) {
+      ompt_get_task_callback(ompt_event_target_task_end)(target_task_id);
+    }
+
+    ompt_target_task_end();
   }
 #endif
 
