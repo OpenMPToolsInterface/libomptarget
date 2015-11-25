@@ -39,34 +39,46 @@ static inline int ompt_enabled()
 
 
 // callback helpers
-static inline ompt_new_target_task_callback_t
-ompt_get_new_target_task_callback(ompt_event_t evid)
+static inline ompt_target_task_begin_callback_t
+ompt_get_target_task_begin_callback()
 {
-    return (ompt_new_target_task_callback_t) ompt_info->get_target_callback(evid);
+    return (ompt_target_task_begin_callback_t)
+        ompt_info->get_target_callback(ompt_event_target_task_begin);
 }
 
-static inline ompt_new_target_data_callback_t
-ompt_get_new_target_data_callback(ompt_event_t evid)
+static inline ompt_target_task_end_callback_t
+ompt_get_target_task_end_callback()
 {
-    return (ompt_new_target_data_callback_t) ompt_info->get_target_callback(evid);
+    return (ompt_target_task_end_callback_t)
+        ompt_info->get_target_callback(ompt_event_target_task_end);
 }
 
-static inline ompt_new_data_map_callback_t
-ompt_get_new_data_map_callback(ompt_event_t evid)
+static inline ompt_target_data_begin_callback_t
+ompt_get_target_data_begin_callback()
 {
-    return (ompt_new_data_map_callback_t) ompt_info->get_target_callback(evid);
-}
-
-static inline ompt_data_map_done_callback_t
-ompt_get_target_data_map_done_callback(ompt_event_t evid)
-{
-    return (ompt_data_map_done_callback_t) ompt_info->get_target_callback(evid);
+    return (ompt_target_data_begin_callback_t)
+        ompt_info->get_target_callback(ompt_event_target_data_begin);
 }
 
 static inline ompt_task_callback_t
-ompt_get_task_callback(ompt_event_t evid)
+ompt_get_target_data_end_callback()
 {
-    return (ompt_task_callback_t) ompt_info->get_target_callback(evid);
+    return (ompt_task_callback_t)
+        ompt_info->get_target_callback(ompt_event_target_data_end);
+}
+
+static inline ompt_target_data_map_begin_callback_t
+ompt_get_target_data_map_begin_callback()
+{
+    return (ompt_target_data_map_begin_callback_t)
+        ompt_info->get_target_callback(ompt_event_target_data_map_begin);
+}
+
+static inline ompt_target_data_map_end_callback_t
+ompt_get_target_data_map_end_callback()
+{
+    return (ompt_target_data_map_end_callback_t)
+        ompt_info->get_target_callback(ompt_event_target_data_map_end);
 }
 
 
@@ -94,6 +106,6 @@ static inline void ompt_target_task_end()
 }
 
 
-uint32_t ompt_get_mapping_flags(int32_t arg_type);
+ompt_target_activity_id_t ompt_target_activity_id_new();
 
 #endif
