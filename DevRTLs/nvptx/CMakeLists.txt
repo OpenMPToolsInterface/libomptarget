@@ -58,6 +58,8 @@ elseif(CUDA_FOUND)
 
     target_link_libraries(omptarget-nvptx ${CUDA_LIBRARIES})
 
+    install(TARGETS omptarget-nvptx DESTINATION lib)
+
 else()
 
     message("CUDA tools not found in system: not building NVPTX device RTL")
