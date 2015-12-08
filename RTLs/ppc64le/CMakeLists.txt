@@ -30,8 +30,6 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES ${tmachine}$)
         add_library(omptarget.rtl.${tmachine_libname} SHARED ../generic-64bit/src/rtl.cpp)
         target_link_libraries(omptarget.rtl.${tmachine_libname}
             ${LIBFFI_LIBRARIES} ${LIBELF_LIBRARIES}
-
-        install(TARGETS omptarget.rtl.${tmachine_libname} DESTINATION lib)
         )
 
     else()

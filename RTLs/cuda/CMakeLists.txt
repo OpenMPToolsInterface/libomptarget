@@ -24,7 +24,6 @@ if(CUDA_FOUND)
     add_library(omptarget.rtl.cuda SHARED src/rtl.cpp)
     target_link_libraries(omptarget.rtl.cuda ${CUDA_LIBRARIES} cuda ${LIBELF_LIBRARIES})
 
-    install(TARGETS omptarget.rtl.cuda DESTINATION lib)
 else()
 
     message("CUDA not found in system: not building CUDA RTL")
