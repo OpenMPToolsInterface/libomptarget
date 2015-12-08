@@ -54,6 +54,11 @@ if(${LIBOMPTARGET_OMPT})
     )
 
     add_definitions(-DOMPT_SUPPORT)
+
+    find_package(OMPT REQUIRED)
+    if(OMPT_FOUND)
+        include_directories(${OMPT_INCLUDE_DIR})
+    endif()
 endif()
 
 include_directories(src/)
