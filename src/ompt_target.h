@@ -16,6 +16,8 @@ typedef struct ompt_target_lib_info_s {
     ompt_get_task_frame_t       get_task_frame;
     ompt_target_task_fn_t       target_task_begin;
     ompt_target_task_fn_t       target_task_end;
+    ompt_target_task_fn_t       target_initial_task_begin;
+    ompt_target_task_fn_t       target_initial_task_end;
 } ompt_target_lib_info_t;
 
 extern const ompt_target_lib_info_t *ompt_info;
@@ -103,6 +105,18 @@ static inline void ompt_target_task_begin()
 static inline void ompt_target_task_end()
 {
     ompt_info->target_task_end();
+}
+
+
+// initial tasks on target
+static inline void ompt_target_initial_task_begin()
+{
+    ompt_info->target_initial_task_begin();
+}
+
+static inline void ompt_target_initial_task_end()
+{
+    ompt_info->target_initial_task_end();
 }
 
 

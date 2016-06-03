@@ -104,6 +104,9 @@ struct RTLInfoTy{
   typedef int32_t (run_region_ty)(int32_t, void*, void**, int32_t);
   typedef int32_t (run_team_region_ty)(int32_t, void*, void**, int32_t, int32_t, int32_t);
 
+#ifdef OMPT_SUPPORT
+  uint16_t MachineId;
+#endif
   int32_t Idx;              // RTL index, index is the number of devices
                             // of other RTLs that were registered before
   int32_t NumberOfDevices;  // Number of devices this RTL deal with
@@ -498,6 +501,9 @@ EXTERN void __tgt_register_lib(__tgt_bin_desc *desc){
 
     // Create the handler and try to retrieve the functions
     RTLInfoTy R;
+#ifdef OMPT_SUPPORT
+    R.MachineId = MachineID;
+#endif
 
     R.LibraryHandler    = dynlib_handle;
     if (!(R.device_type       = (RTLInfoTy::device_type_ty*)      dlsym(dynlib_handle, "__tgt_rtl_device_type"))) continue;
@@ -1227,6 +1233,14 @@ static int target(int32_t device_id, void *host_ptr, int32_t arg_num,
   DP("Launching target execution with pointer %016lx (index=%d).\n", 
     (Elf64_Addr)TargetTable->EntriesBegin[TM->Index].addr, TM->Index);
 
+#ifdef OMPT_SUPPORT
+  bool executeOnHost = Device.RTL->MachineId == 21 /* EM_PPC64 */ ||
+    Device.RTL->MachineId == 62 /* EM_X86_64*/;
+  if (executeOnHost) {
+    ompt_target_initial_task_begin();
+  }
+#endif
+
   if (IsTeamConstruct) {
     res = Device.run_team_region(TargetTable->EntriesBegin[TM->Index].addr,
       &tgt_args[0], tgt_args.size(), team_num, thread_limit);
@@ -1234,6 +1248,12 @@ static int target(int32_t device_id, void *host_ptr, int32_t arg_num,
     res = Device.run_region(TargetTable->EntriesBegin[TM->Index].addr,
       &tgt_args[0], tgt_args.size());
   }
+
+#ifdef OMPT_SUPPORT
+  if (executeOnHost) {
+    ompt_target_initial_task_end();
+  }
+#endif
 
   if (res != OFFLOAD_SUCCESS)
     return OFFLOAD_FAIL;
