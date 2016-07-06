@@ -32,6 +32,7 @@
 #include "targets_info.h"
 
 #ifdef OMPT_SUPPORT
+  #include <memory>
   #include "ompt_target.h"
 #endif
 
